@@ -224,10 +224,12 @@
     </footer>
 
     <script>
+        const API_BASE = 'http://localhost:8080';
+
         // Fetch workflow state and render UI
         async function loadWorkflow() {
             try {
-                const response = await fetch('/api/workflow');
+                const response = await fetch(`${API_BASE}/api/workflow/graph`);
                 if (!response.ok) throw new Error('Failed to fetch workflow');
                 const workflow = await response.json();
                 
@@ -243,67 +245,79 @@
             const container = document.getElementById('swimlane-container');
             container.innerHTML = ''; // Clear previous
 
-            workflow.lanes.forEach(lane => {
+            // Unique swimlane IDs from nodes
+            const laneIds = [...new Set(workflow.nodes.map(n => n.swimlane_id))];
+            
+            laneIds.forEach(laneId => {
                 const laneEl = document.createElement('div');
                 laneEl.className = 'lane';
                 
+                // Find a friendly name for the lane if we had separate lane objects, 
+                // but for now we'll just use the ID or title-case it.
                 laneEl.innerHTML = `
                     <div class="lane-header">
-                        <div class="lane-title">${lane.title}</div>
-                        <div class="lane-subtitle">${lane.subtitle || ''}</div>
+                        <div class="lane-title">${laneId.toUpperCase()}</div>
                     </div>
-                    <div class="lane-content" id="lane-${lane.id}"></div>
+                    <div class="lane-content" id="lane-${laneId}"></div>
                 `;
                 
                 container.appendChild(laneEl);
                 const contentEl = laneEl.querySelector('.lane-content');
 
-                lane.tasks.forEach(task => {
-                    const card = createTaskCard(task);
+                workflow.nodes.filter(n => n.swimlane_id === laneId).forEach(node => {
+                    const card = createNodeCard(node);
                     contentEl.appendChild(card);
                 });
             });
         }
 
-        function createTaskCard(task) {
+        function createNodeCard(node) {
             const card = document.createElement('div');
             card.className = 'task-card';
             
+            const isDecision = node.type === 'DECISION';
+            
             card.innerHTML = `
                 <div class="glint"></div>
-                <div class="task-id">${task.filename}</div>
-                <div class="task-text" id="content-${task.filename.replace(/\./g, '-')}">Loading document...</div>
+                <div class="task-id">${node.id} [${node.type}]</div>
+                <div class="task-text" id="content-${node.id}">
+                    <strong>${node.label}</strong>
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-muted);">
+                        ${isDecision ? '<em>Decision Engine Ready</em>' : 'Loading document...'}
+                    </div>
+                </div>
                 <div class="task-meta">
-                    <span class="tag">${task.status}</span>
+                    <span class="tag" style="background: ${isDecision ? '#9333ea' : 'var(--accent-subtle)'}">${node.type}</span>
                 </div>
             `;
 
-            // Load markdown content asynchronously
-            fetchDocContent(task.filename);
+            if (node.filename) {
+                fetchDocContent(node.filename, `content-${node.id}`);
+            }
 
             return card;
         }
 
-        async function fetchDocContent(filename) {
+        async function fetchDocContent(filename, targetId) {
             try {
-                const response = await fetch(`/api/docs/${filename}`);
+                const response = await fetch(`${API_BASE}/api/docs/${filename}`);
                 if (!response.ok) throw new Error('Doc not found');
                 const content = await response.text();
                 
-                const targetId = `content-${filename.replace(/\./g, '-')}`;
                 const targetEl = document.getElementById(targetId);
                 if (targetEl) {
-                    // Simple text preview for now, markdown parsing planned
-                    targetEl.innerText = content.substring(0, 150) + (content.length > 150 ? '...' : '');
+                    const preview = content.substring(0, 150) + (content.length > 150 ? '...' : '');
+                    targetEl.innerHTML += `<div style="margin-top: 0.5rem; font-style: normal;">${preview}</div>`;
                 }
             } catch (err) {
                 console.error(err);
             }
         }
 
-        // Periodically check for updates (basic polling)
+        // Initial load
         loadWorkflow();
-        setInterval(loadWorkflow, 5000);
+        // Periodically check for updates
+        setInterval(loadWorkflow, 10000);
     </script>
 </body>
 </html>
