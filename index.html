@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Swimlanes</title>
+    <style>
+        :root {
+            --bg-deep: #0f1115;
+            --bg-card: #181a1f;
+            --border-color: #2d2f36;
+            --accent-primary: #6366f1;
+            --accent-subtle: #31333b;
+            --text-main: #f1f5f9;
+            --text-muted: #64748b;
+            --font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            letter-spacing: -0.011em;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-deep);
+            z-index: 10;
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-main);
+            border-left: 3px solid var(--accent-primary);
+            padding-left: 0.75rem;
+        }
+
+        .status {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: #22c55e;
+            border-radius: 50%;
+        }
+
+        .swimlane-container {
+            display: flex;
+            flex: 1;
+            padding: 0;
+            overflow-x: auto;
+            background: var(--bg-deep);
+        }
+
+        .lane {
+            flex: 0 0 400px;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background: transparent;
+        }
+
+        .lane-header {
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .lane-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.075em;
+            color: var(--text-main);
+        }
+
+        .lane-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .lane-content {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .task-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 1.25rem;
+            border-radius: 4px;
+            position: relative;
+            transition: border-color 0.2s ease;
+        }
+
+        .task-card:hover {
+            border-color: var(--text-muted);
+        }
+
+        .task-id {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+        }
+
+        .task-text {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            font-weight: 300;
+        }
+
+        .task-meta {
+            margin-top: 1.25rem;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tag {
+            padding: 0.1rem 0.4rem;
+            border-radius: 2px;
+            background: var(--accent-subtle);
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Scrollbar styles to keep it austere */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        footer {
+            padding: 0.75rem 2rem;
+            border-top: 0.5px solid var(--border-color);
+            background: var(--bg-deep);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        .glint {
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            transform: skewX(-20deg);
+            transition: 0.7s;
+        }
+
+        .task-card:hover .glint {
+            left: 100%;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">Agent Swimlanes</div>
+        <div class="status">
+            <span class="status-dot"></span>
+            Orchestrator Heartbeat: 200ms
+        </div>
+    </header>
+
+    <div class="swimlane-container" id="swimlane-container">
+        <!-- Dynamic content will be loaded here -->
+    </div>
+
+    <footer>
+        <div id="build-tag">BUILD VERSION 0.1.0-ALPHA</div>
+        <div id="api-status">CONNECTING TO WORKFLOW ENGINE...</div>
+    </footer>
+
+    <script>
+        // Fetch workflow state and render UI
+        async function loadWorkflow() {
+            try {
+                const response = await fetch('/api/workflow');
+                if (!response.ok) throw new Error('Failed to fetch workflow');
+                const workflow = await response.json();
+                
+                document.getElementById('api-status').innerText = `CONNECTED: ${workflow.name}`;
+                renderWorkflow(workflow);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('api-status').innerText = 'OFFLINE (Is the server running on :8080?)';
+            }
+        }
+
+        function renderWorkflow(workflow) {
+            const container = document.getElementById('swimlane-container');
+            container.innerHTML = ''; // Clear previous
+
+            workflow.lanes.forEach(lane => {
+                const laneEl = document.createElement('div');
+                laneEl.className = 'lane';
+                
+                laneEl.innerHTML = `
+                    <div class="lane-header">
+                        <div class="lane-title">${lane.title}</div>
+                        <div class="lane-subtitle">${lane.subtitle || ''}</div>
+                    </div>
+                    <div class="lane-content" id="lane-${lane.id}"></div>
+                `;
+                
+                container.appendChild(laneEl);
+                const contentEl = laneEl.querySelector('.lane-content');
+
+                lane.tasks.forEach(task => {
+                    const card = createTaskCard(task);
+                    contentEl.appendChild(card);
+                });
+            });
+        }
+
+        function createTaskCard(task) {
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            
+            card.innerHTML = `
+                <div class="glint"></div>
+                <div class="task-id">${task.filename}</div>
+                <div class="task-text" id="content-${task.filename.replace(/\./g, '-')}">Loading document...</div>
+                <div class="task-meta">
+                    <span class="tag">${task.status}</span>
+                </div>
+            `;
+
+            // Load markdown content asynchronously
+            fetchDocContent(task.filename);
+
+            return card;
+        }
+
+        async function fetchDocContent(filename) {
+            try {
+                const response = await fetch(`/api/docs/${filename}`);
+                if (!response.ok) throw new Error('Doc not found');
+                const content = await response.text();
+                
+                const targetId = `content-${filename.replace(/\./g, '-')}`;
+                const targetEl = document.getElementById(targetId);
+                if (targetEl) {
+                    // Simple text preview for now, markdown parsing planned
+                    targetEl.innerText = content.substring(0, 150) + (content.length > 150 ? '...' : '');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Periodically check for updates (basic polling)
+        loadWorkflow();
+        setInterval(loadWorkflow, 5000);
+    </script>
+</body>
+</html>
