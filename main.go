@@ -140,10 +140,37 @@ func createRouter() http.Handler {
 		}
 	})
 
-	// 5. Static Assets (JS/CSS)
+	// 5. Execution Logs: GET /api/execution/logs/:node_id
+	mux.HandleFunc("/api/execution/logs/", func(w http.ResponseWriter, r *http.Request) {
+		nodeID := r.URL.Path[len("/api/execution/logs/"):]
+		// Returns mock log for now or can be extended with real storage
+		log := ExecutionLog{
+			ID:             "log-" + nodeID,
+			NodeID:         nodeID,
+			Reasoning:      "Mock reasoning: The agent analyzed the context and selected the optimal path.",
+			SelectedEdgeID: "edge-x",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(log)
+	})
+
+	// 6. Agent Personas: GET /api/agents
+	mux.HandleFunc("/api/agents", func(w http.ResponseWriter, r *http.Request) {
+		workflow, _ := LoadWorkflow(DefaultYaml)
+		agents := make(map[string]string)
+		for _, node := range workflow.Nodes {
+			if _, exists := agents[node.SwimlaneID]; !exists {
+				agents[node.SwimlaneID] = node.SystemPrompt
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(agents)
+	})
+
+	// 7. Static Assets (JS/CSS)
 	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.Dir("ui"))))
 
-	// 6. Document Content
+	// 8. Document Content
 	mux.HandleFunc("/api/docs/", func(w http.ResponseWriter, r *http.Request) {
 		filename := r.URL.Path[len("/api/docs/"):]
 		workflow, err := LoadWorkflow(DefaultYaml)
