@@ -81,4 +81,46 @@ func TestAPIRoutes(t *testing.T) {
 	if result["target_node_id"] != "node-2" {
 		t.Errorf("Expected target node id node-2, got %s", result["target_node_id"])
 	}
+
+	// 4. Test POST /api/workflow/edges (NEW)
+	newEdge := Edge{ID: "edge-x", FromNodeID: "node-2", ToNodeID: "node-3", Label: "Final"}
+	body, _ = json.Marshal(newEdge)
+	req, _ = http.NewRequest("POST", "/api/workflow/edges", bytes.NewBuffer(body))
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf("POST /api/workflow/edges returned %v", rr.Code)
+	}
+
+	// 5. Test GET /api/agents (NEW)
+	req, _ = http.NewRequest("GET", "/api/agents", nil)
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("GET /api/agents returned %v", rr.Code)
+	}
+
+	// 6. Test GET /api/execution/logs/:id (NEW)
+	req, _ = http.NewRequest("GET", "/api/execution/logs/node-1", nil)
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("GET /api/execution/logs/node-1 returned %v", rr.Code)
+	}
+
+	// 7. Test CORS Headers (NEW)
+	if rr.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Errorf("Expected Access-Control-Allow-Origin: *, got %s", rr.Header().Get("Access-Control-Allow-Origin"))
+	}
+
+	// 8. Test Health Check (NEW)
+	req, _ = http.NewRequest("GET", "/api/health", nil)
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("GET /api/health returned %v", rr.Code)
+	}
 }
