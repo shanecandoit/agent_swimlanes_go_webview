@@ -140,7 +140,10 @@ func createRouter() http.Handler {
 		}
 	})
 
-	// 5. Document Content
+	// 5. Static Assets (JS/CSS)
+	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.Dir("ui"))))
+
+	// 6. Document Content
 	mux.HandleFunc("/api/docs/", func(w http.ResponseWriter, r *http.Request) {
 		filename := r.URL.Path[len("/api/docs/"):]
 		workflow, err := LoadWorkflow(DefaultYaml)

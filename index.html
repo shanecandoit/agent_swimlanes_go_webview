@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agent Swimlanes</title>
+    <script src="http://localhost:8080/ui/js/leader-line.min.js"></script>
     <style>
         :root {
             --bg-deep: #0f1115;
@@ -83,32 +84,80 @@
         }
 
         .lane-header {
-            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            padding: 1.5rem 1.5rem 0.75rem 1.5rem;
             display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            border-bottom: 2px solid var(--accent-subtle);
+            margin-bottom: 0.5rem;
+        }
+
+        .lane-title-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
         .lane-title {
-            font-size: 0.8rem;
-            font-weight: 600;
+            font-size: 0.85rem;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.075em;
+            letter-spacing: 0.1em;
             color: var(--text-main);
         }
 
-        .lane-subtitle {
-            font-size: 0.75rem;
+        /* Tooltip Container */
+        .info-button {
+            position: relative;
+            cursor: help;
             color: var(--text-muted);
-            line-height: 1.4;
+            line-height: 0;
+            display: flex;
+            align-items: center;
+            transition: color 0.2s;
+        }
+
+        .info-button:hover {
+            color: var(--accent-primary);
+        }
+
+        /* Tooltip style */
+        .info-button::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1e293b;
+            color: #f1f5f9;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            width: 250px;
+            white-space: normal;
+            line-height: 1.5;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            border: 1px solid var(--accent-subtle);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .info-button:hover::after {
+            opacity: 1;
         }
 
         .lane-content {
             flex: 1;
-            padding: 1rem 1.5rem;
+            padding: 1.5rem;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 3rem;
             overflow-y: auto;
         }
 
@@ -225,6 +274,7 @@
 
     <script>
         const API_BASE = 'http://localhost:8080';
+        let activeLines = [];
 
         // Fetch workflow state and render UI
         async function loadWorkflow() {
@@ -235,28 +285,47 @@
                 
                 document.getElementById('api-status').innerText = `CONNECTED: ${workflow.name}`;
                 renderWorkflow(workflow);
+                
+                // Wait for layout to settle, then draw edges
+                setTimeout(() => drawEdges(workflow), 300);
             } catch (err) {
                 console.error(err);
                 document.getElementById('api-status').innerText = 'OFFLINE (Is the server running on :8080?)';
             }
         }
 
+        const infoIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
+
         function renderWorkflow(workflow) {
             const container = document.getElementById('swimlane-container');
             container.innerHTML = ''; // Clear previous
+
+            // Detect Start and End nodes
+            const startNodeIds = new Set(workflow.nodes.map(n => n.id));
+            const endNodeIds = new Set(workflow.nodes.map(n => n.id));
+            workflow.edges.forEach(e => {
+                startNodeIds.delete(e.to_node_id);
+                endNodeIds.delete(e.from_node_id);
+            });
 
             // Unique swimlane IDs from nodes
             const laneIds = [...new Set(workflow.nodes.map(n => n.swimlane_id))];
             
             laneIds.forEach(laneId => {
+                const laneNodes = workflow.nodes.filter(n => n.swimlane_id === laneId);
+                const personaInfo = laneNodes[0]?.system_prompt || "No persona defined.";
+
                 const laneEl = document.createElement('div');
                 laneEl.className = 'lane';
                 
-                // Find a friendly name for the lane if we had separate lane objects, 
-                // but for now we'll just use the ID or title-case it.
                 laneEl.innerHTML = `
                     <div class="lane-header">
-                        <div class="lane-title">${laneId.toUpperCase()}</div>
+                        <div class="lane-title-group">
+                            <div class="lane-title">${laneId.toUpperCase()}</div>
+                            <div class="info-button" data-tooltip="${personaInfo}">
+                                ${infoIconSvg}
+                            </div>
+                        </div>
                     </div>
                     <div class="lane-content" id="lane-${laneId}"></div>
                 `;
@@ -264,26 +333,34 @@
                 container.appendChild(laneEl);
                 const contentEl = laneEl.querySelector('.lane-content');
 
-                workflow.nodes.filter(n => n.swimlane_id === laneId).forEach(node => {
-                    const card = createNodeCard(node);
+                laneNodes.forEach(node => {
+                    const card = createNodeCard(node, {
+                        isStart: startNodeIds.has(node.id),
+                        isEnd: endNodeIds.has(node.id)
+                    });
                     contentEl.appendChild(card);
                 });
             });
         }
 
-        function createNodeCard(node) {
+        function createNodeCard(node, meta) {
             const card = document.createElement('div');
             card.className = 'task-card';
+            card.id = `node-el-${node.id}`;
             
             const isDecision = node.type === 'DECISION';
             
             card.innerHTML = `
                 <div class="glint"></div>
-                <div class="task-id">${node.id} [${node.type}]</div>
+                <div class="task-id">
+                    ${node.id}
+                    ${meta.isStart ? '<span class="tag" style="background: #059669; color: white;">START</span>' : ''}
+                    ${meta.isEnd ? '<span class="tag" style="background: #991b1b; color: white;">END</span>' : ''}
+                </div>
                 <div class="task-text" id="content-${node.id}">
                     <strong>${node.label}</strong>
                     <div style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-muted);">
-                        ${isDecision ? '<em>Decision Engine Ready</em>' : 'Loading document...'}
+                        ${isDecision ? '<em>Decision Engine</em>' : 'Loading content...'}
                     </div>
                 </div>
                 <div class="task-meta">
@@ -295,7 +372,68 @@
                 fetchDocContent(node.filename, `content-${node.id}`);
             }
 
+            // Add hover handlers to highlight lines
+            card.addEventListener('mouseenter', () => highlightLines(node.id, true));
+            card.addEventListener('mouseleave', () => highlightLines(node.id, false));
+
             return card;
+        }
+
+        const lineMap = new Map(); // nodeID -> lines[]
+
+        function drawEdges(workflow) {
+            activeLines.forEach(line => { try { line.remove(); } catch (e) {} });
+            activeLines = [];
+            lineMap.clear();
+
+            if (typeof LeaderLine === 'undefined') return;
+
+            workflow.edges.forEach(edge => {
+                const startEl = document.getElementById(`node-el-${edge.from_node_id}`);
+                const endEl = document.getElementById(`node-el-${edge.to_node_id}`);
+
+                if (startEl && endEl) {
+                    try {
+                        const line = new LeaderLine(
+                            startEl,
+                            endEl,
+                            {
+                                color: 'rgba(99, 102, 241, 0.15)', // Faint by default
+                                size: 2,
+                                path: 'fluid',
+                                endPlug: 'arrow',
+                                dash: { animation: true },
+                                label: edge.label ? LeaderLine.captionLabel(edge.label, {color: 'rgba(241, 245, 249, 0.3)', fontSize: 10}) : ''
+                            }
+                        );
+                        activeLines.push(line);
+                        
+                        // Map lines to both start and end nodes
+                        if (!lineMap.has(edge.from_node_id)) lineMap.set(edge.from_node_id, []);
+                        if (!lineMap.has(edge.to_node_id)) lineMap.set(edge.to_node_id, []);
+                        lineMap.get(edge.from_node_id).push(line);
+                        lineMap.get(edge.to_node_id).push(line);
+                    } catch (e) {
+                        console.error('Error drawing line:', e);
+                    }
+                }
+            });
+        }
+
+        function highlightLines(nodeId, highlight) {
+            const lines = lineMap.get(nodeId);
+            if (!lines) return;
+
+            lines.forEach(line => {
+                line.setOptions({
+                    color: highlight ? 'rgba(99, 102, 241, 0.9)' : 'rgba(99, 102, 241, 0.15)',
+                    size: highlight ? 4 : 2,
+                });
+                // We could also update the label here if needed
+                if (line.label) {
+                    // LeaderLine is funny about label updates, sometimes it needs redraw
+                }
+            });
         }
 
         async function fetchDocContent(filename, targetId) {
@@ -306,18 +444,32 @@
                 
                 const targetEl = document.getElementById(targetId);
                 if (targetEl) {
-                    const preview = content.substring(0, 150) + (content.length > 150 ? '...' : '');
-                    targetEl.innerHTML += `<div style="margin-top: 0.5rem; font-style: normal;">${preview}</div>`;
+                    const preview = content.substring(0, 100).replace(/#/g, '').trim() + (content.length > 100 ? '...' : '');
+                    const label = targetEl.querySelector('strong').innerText;
+                    targetEl.innerHTML = `<strong>${label}</strong><div style="margin-top: 0.5rem; font-style: normal; font-size: 0.8rem; color: #cbd5e1; line-height: 1.5;">${preview}</div>`;
                 }
             } catch (err) {
                 console.error(err);
             }
         }
 
-        // Initial load
-        loadWorkflow();
-        // Periodically check for updates
-        setInterval(loadWorkflow, 10000);
+        // Handle drawing and repositioning
+        window.addEventListener('load', loadWorkflow);
+        
+        // Reposition lines when container scrolls or window resizes
+        const container = document.getElementById('swimlane-container');
+        if (container) {
+            container.addEventListener('scroll', () => {
+                activeLines.forEach(l => l.position());
+            });
+        }
+        
+        window.addEventListener('resize', () => {
+            activeLines.forEach(l => l.position());
+        });
+
+        // Periodic refresh (optional, but keep it low for stability)
+        // setInterval(loadWorkflow, 30000);
     </script>
 </body>
 </html>
